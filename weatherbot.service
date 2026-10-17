@@ -1,0 +1,14 @@
+[Unit]
+Description=Uzbekistan Weather Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=CHANGE_ME_USER
+WorkingDirectory=/home/CHANGE_ME_USER/weather_bot
+ExecStart=/home/CHANGE_ME_USER/weather_bot/venv/bin/python bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
