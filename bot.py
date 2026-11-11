@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
@@ -22,7 +23,7 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("weatherbot")
 
-BOT_TOKEN = os.environ["BOT_TOKEN"]
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()}
 MORNING = os.getenv("MORNING_TIME", "07:00")
 TZ = ZoneInfo("Asia/Tashkent")
@@ -67,10 +68,18 @@ WAIT_BROADCAST = 1
 
 
 # ---------------------------------------------------------------- DB
+@contextmanager
 def db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def init_db():
@@ -381,6 +390,14 @@ async def on_error(update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN muhit o'zgaruvchisi sozlanmagan.")
+    try:
+        hh, mm = (int(x) for x in MORNING.split(":"))
+        morning_time = time(hh, mm, tzinfo=TZ)
+    except ValueError as exc:
+        raise ValueError("MORNING_TIME HH:MM formatida bo'lishi kerak.") from exc
+
     init_db()
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -406,8 +423,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, place_text))
     app.add_error_handler(on_error)
 
-    hh, mm = (int(x) for x in MORNING.split(":"))
-    app.job_queue.run_daily(morning_job, time=time(hh, mm, tzinfo=TZ), name="morning")
+    app.job_queue.run_daily(morning_job, time=morning_time, name="morning")
 
     log.info("Bot ishga tushdi")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
