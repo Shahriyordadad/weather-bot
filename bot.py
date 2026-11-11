@@ -426,6 +426,10 @@ def main():
     app.job_queue.run_daily(morning_job, time=morning_time, name="morning")
 
     log.info("Bot ishga tushdi")
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
